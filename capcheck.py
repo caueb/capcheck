@@ -10,7 +10,7 @@ from pathlib import Path
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 date_time = datetime.datetime.now()
-file_name = date_time.strftime("MFAsweep" + "%m-%d-%y-%X.txt")
+file_name = date_time.strftime("capcheck_" + "%m-%d-%y-%X.txt")
 file_name = file_name.replace(":", "-")
 
 scope_list = []
@@ -165,33 +165,46 @@ clientid_table = [
 ]
 
 
+
+
 def main():
     # Take in user args
     parser = argparse.ArgumentParser(
-        description="Check endpoints for MFA with a valid username and password",
+        description="Audit Azure endpoints for MFA conditional access policy bypasses with a valid username and password. This tool will also print the scopes of the tokens obtained.",
         epilog=(
             "examples:\n"
-            "python3 mfasweeper.py -u user@client.com -p password --clientid 2 --useragent 3 --endpoint 21\n\n"
-            "python3 mfasweeper.py -u user@client.com -p password --clientid-brute --useragent \"test\" --endpoint-brute\n\n"
-            "python3 mfasweeper.py -u user@client.com -p password --clientid-brute --useragent-brute --endpoint-brute\n\n"
+            "# List build in parameters.\n"
+            "python3 capcheck.py --list-all\n\n"
+
+            "# Sign into intune using the MS intune company portal client id and windows desktop user agent. Use the built in numbers or specify the value directly.\n" 
+            "python3 capcheck.py -u user@client.com -p password -c 59 -e 21 -a 5\n"
+            "python3 capcheck.py -u user@client.com -p password -c '9ba1a5c7-f17a-4de9-a1f1-6178c8d51223' -e 'https://msmamservice.api.application' -a 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0'\n\n"
+
+            "# Brute force various built in parameters.\n"
+            "python3 capcheck.py -u user@client.com -p password --useragent-brute\n"
+            "python3 capcheck.py -u user@client.com -p password --clientid-brute\n"
+            "python3 capcheck.py -u user@client.com -p password --endpoint-brute\n\n"
+            
+            "# Brute force everything, proxy the requests.\n"
+            "python3 capcheck.py -u user@client.com -p password --brute-all --proxy http://127.0.0.1:8080\n"
 
         ),
         formatter_class=argparse.RawTextHelpFormatter
     )
                                     
     parser.add_argument("-u", "--username", dest='username', default=None, help="The username for authentication.")
-    parser.add_argument("-U", "--userlist", dest='username_list', default=None, help="A file containing a list of usernames.")
+    parser.add_argument("-U", "--userlist", dest='username_list', default=None, help="A file containing a list of usernames. Useful when common passwords are used more than once across users in the organization.")
     parser.add_argument("-p", "--password", dest='password', default=None, help="The password for authentication.")
     parser.add_argument("-a", "--useragent", dest='useragent', default=None, help="Define a user agent to try. Default is iPhone.")
+    #parser.add_argument("-A", "--useragentfile", dest='useragent_file', default=None, help="A file containing a list of user agents.")
     parser.add_argument("-c", "--clientid", dest='clientid', default=None, help="Define a client id to try. Default is aadps.")
-    #parser.add_argument("-C", "--clientidlist", dest='clientid_list', default=None, help="A file containing a list of client ids.")
+    #parser.add_argument("-C", "--clientidfile", dest='clientid_file', default=None, help="A file containing a list of client ids.")
     parser.add_argument("-e", "--endpoint", dest='endpoint', default=None, help="The endpoint to spray. Deafult is MS Graph.")
-    #parser.add_argument("-af", "--useragent-file", dest='useragent_file', default=None, help="Specify a file with user agents to try.")
-    #parser.add_argument("-ef", "--endpoint-file", dest='endpoint_file', default=None, help="Specify a file with endpoints to spray.")
-    parser.add_argument("-uab", "--useragent-brute", dest='useragent_brute', action='store_true', help="Perform user agent brute forcing.")
-    parser.add_argument("-cib", "--clientid-brute", dest='clientid_brute', action='store_true', help="Perform client id brute forcing.")
-    parser.add_argument("-eb", "--endpoint-brute", dest='endpoint_brute', action='store_true', help="Perform endpoint brute forcing.")
-    parser.add_argument("--brute-all", dest='brute_all', action='store_true', help="Perform user agent, endpoint, and client ID brute forcing.")
+    #parser.add_argument("-E", "--endpointfile", dest='endpoint_file', default=None, help="A file containing a list of azure endpoints.")
+    parser.add_argument("-ab", "--useragent-brute", dest='useragent_brute', action='store_true', help="Perform user agent brute forcing with built in list.")
+    parser.add_argument("-cb", "--clientid-brute", dest='clientid_brute', action='store_true', help="Perform client id brute forcing with built in list.")
+    parser.add_argument("-eb", "--endpoint-brute", dest='endpoint_brute', action='store_true', help="Perform endpoint brute forcing with built in list.")
+    parser.add_argument("--brute-all", dest='brute_all', action='store_true', help="Perform user agent, endpoint, and client ID brute forcing with built in lists. WARNING - lots of requests..")
     parser.add_argument("--list-useragents", dest='list_useragents', action='store_true', help="List the built in user agents.")
     parser.add_argument("--list-endpoints", dest='list_endpoints', action='store_true', help="List the built in endpoints.")
     parser.add_argument("--list-clientids", dest='list_clientids', action='store_true', help="List the built in client ids.")
@@ -211,15 +224,15 @@ def main():
     endpoint_brute = args.endpoint_brute
     proxy = args.proxy
 
-    if args.list_all:
+    if args.list_all is True:
         args.list_useragents = True
         args.list_endpoints = True
         args.list_clientids = True
 
-    if args.brute_all:
-        args.useragent_brute = True
-        args.clientid_brute = True
-        args.endpoint_brute = True
+    if args.brute_all is True:
+        useragent_brute = True
+        clientid_brute = True
+        endpoint_brute = True
 
 
     if args.list_useragents or args.list_endpoints or args.list_clientids:
@@ -248,6 +261,14 @@ def main():
             print()
         exit()
         
+    if not args.username and not args.username_list:
+        print("You provide a username to test.")
+        exit()
+
+    if not args.password:
+        print("You must provide a password for the user.")
+        exit()
+              
     # set default user agent as first entry in table
     if args.useragent is None:
         user_agent = useragent_table[0][2]
@@ -292,7 +313,7 @@ def main():
         if clientid_brute:
             if endpoint_brute:
                 # All 3
-                answer = input("This will generate " + str(len(clientid_table)*len(endpoint_table)*len(useragent_table)) + " login attempts for each user specified. Logging results to ./log/" + file_name + ". Continue? [Y/n] \n")
+                answer = input("This will generate " + str(len(clientid_table)*len(endpoint_table)*len(useragent_table)) + " login attempts for each user specified. Logging results to ./capcheck_log/" + file_name + ". Continue? [Y/n] \n")
                 if answer.lower() == 'y' or answer.lower() == '':
 
                     for agent in useragent_table:
@@ -319,7 +340,7 @@ def main():
 
             else:
                 # useragent and cliendid brute only
-                answer = input("This will generate " + str(len(clientid_table)*len(useragent_table)) + " login attempts. Logging results to ./log/" + file_name + ". Continue? [Y/n] \n")
+                answer = input("This will generate " + str(len(clientid_table)*len(useragent_table)) + " login attempts. Logging results to ./capcheck_log/" + file_name + ". Continue? [Y/n] \n")
                 if answer.lower() == 'y' or answer.lower() == '':
 
                     for agent in useragent_table:
@@ -344,7 +365,7 @@ def main():
 
         elif endpoint_brute:
             # useragent and endpoint brute only
-            answer = input("This will generate " + str(len(useragent_table)*len(endpoint_table)) + " login attempts. Logging results to ./log/" + file_name + ". Continue? [Y/n] \n")
+            answer = input("This will generate " + str(len(useragent_table)*len(endpoint_table)) + " login attempts. Logging results to ./capcheck_log/" + file_name + ". Continue? [Y/n] \n")
             if answer.lower() == 'y' or answer.lower() == '':
 
                 for agent in useragent_table:
@@ -368,7 +389,7 @@ def main():
 
         else: 
             # useragent brute only
-            answer = input("This will generate " + str(len(useragent_table)) + " login attempts. Logging results to ./log/" + file_name + ". Continue? [Y/n] \n")
+            answer = input("This will generate " + str(len(useragent_table)) + " login attempts. Logging results to ./capcheck_log/" + file_name + ". Continue? [Y/n] \n")
             if answer.lower() == 'y' or answer.lower() == '':
                 
                 for agent in useragent_table:
@@ -391,7 +412,7 @@ def main():
     elif clientid_brute:
         if endpoint_brute:
             # clientid and endpoint brute only
-            answer = input("This will generate " + str(len(clientid_table)*len(endpoint_table)) + " login attempts. Logging results to ./log/" + file_name + ". Continue? [Y/n] \n")
+            answer = input("This will generate " + str(len(clientid_table)*len(endpoint_table)) + " login attempts. Logging results to ./capcheck_log/" + file_name + ". Continue? [Y/n] \n")
             if answer.lower() == 'y' or answer.lower() == '':
 
                 for id in clientid_table:
@@ -414,7 +435,7 @@ def main():
         
         else:
             # clientid brute only
-            answer = input("This will generate " + str(len(clientid_table)) + " login attempts. Logging results to ./log/" + file_name + ". Continue? [Y/n] \n")
+            answer = input("This will generate " + str(len(clientid_table)) + " login attempts. Logging results to ./capcheck_log/" + file_name + ". Continue? [Y/n] \n")
             if answer.lower() == 'y' or answer.lower() == '':
 
                 for id in clientid_table:
@@ -434,7 +455,7 @@ def main():
 
     elif endpoint_brute:
         #endpoint BF
-        answer = input("This will generate " + str(len(endpoint_table)) + " login attempts. Logging results to ./log/" + file_name + ". Continue? [Y/n] \n")
+        answer = input("This will generate " + str(len(endpoint_table)) + " login attempts. Logging results to ./capcheck_log/" + file_name + ". Continue? [Y/n] \n")
         if answer.lower() == 'y' or answer.lower() == '':
             
             for url in endpoint_table:
@@ -454,7 +475,7 @@ def main():
 
     else:
         # No BF
-        answer = input("This will generate 1 login attempt for each user specified. Logging results to ./log/" + file_name + ". Continue? [Y/n]")
+        answer = input("This will generate 1 login attempt for each user specified. Logging results to ./capcheck_log/" + file_name + ". Continue? [Y/n]")
         if answer.lower() == 'y' or answer.lower() == '':
             
             if username_list:
@@ -478,9 +499,9 @@ def main():
 
 def login(file_name, username, password, endpoint, client_id, user_agent, user_agent_name, proxy=None):
     
-    Path("./log").mkdir(parents=True, exist_ok=True)
+    Path("./capcheck_log").mkdir(parents=True, exist_ok=True)
     
-    validation_log = open("./log/" + file_name, "a")
+    validation_log = open("./capcheck_log/" + file_name, "a")
     current_date_time = datetime.datetime.now()
     time = current_date_time.strftime("%m/%d/%y %X")
 
@@ -500,7 +521,7 @@ def login(file_name, username, password, endpoint, client_id, user_agent, user_a
     
     encoded_password = password.replace("%", "%25")
 
-    # manually convert body to a urlencoded string and add password later so requests doesnt urlencode the password
+    # manually convert body to a urlencoded string and add password later so requests doesnt urlencode the password incorrectly
     body_string = "&".join(f"{key}={requests.utils.quote(str(value))}" for key, value in body.items())
 
     body_string += f"&password={encoded_password}"
