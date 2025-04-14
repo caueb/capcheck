@@ -2,9 +2,6 @@
 Audit Azure endpoints for MFA conditional access policy bypasses with a valid username and password. Use the built in options and brute force everything (loud), or specify a specific combination of user agent, client ID, and endpoint you suspect will bypass MFA. This tool will print the scope of any tokens obtained at the end of the run. Only for non-federated logins atm.
 
 ```
-Audit Azure endpoints for MFA conditional access policy bypasses with a valid username and password. This tool will also print the scopes of
-the tokens obtained.
-
 options:
   -h, --help            Show this help message and exit.
   -u, --username USERNAME
@@ -51,15 +48,15 @@ python3 capcheck.py -u user@client.com -p password --brute-all --proxy http://12
 
 ## Examples
 Check MFA enforcement across Azure endpoints with the built in values:  
-![image](https://github.com/user-attachments/assets/e0a0517d-2d8c-4587-b9cb-fd4788c80434)
+![image](https://github.com/user-attachments/assets/e0a0517d-2d8c-4587-b9cb-fd4788c80434)  
 
 Specify a custom client ID, user agent, and endpoint:  
-![image](https://github.com/user-attachments/assets/006d5e37-374a-46c4-9df2-39be16637e9b)
+![image](https://github.com/user-attachments/assets/006d5e37-374a-46c4-9df2-39be16637e9b)  
 
 ## Credits
-carlospolop - https://github.com/carlospolop/AzureAppsSweep
+carlospolop - https://github.com/carlospolop/AzureAppsSweep  
 dafthack - https://github.com/dafthack/MFASweep
 
 ## TODO
-- Take files in as input
-- Support federated logins
+- Take files in as input  
+- Support federated logins  
