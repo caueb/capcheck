@@ -59,4 +59,5 @@ dafthack - https://github.com/dafthack/MFASweep
 
 ## TODO
 - Take files in as input  
-- Support federated logins  
+- Support federated logins
+- Jitter / delay 
