@@ -54,10 +54,15 @@ Specify a custom client ID, user agent, and endpoint:
 ![image](https://github.com/user-attachments/assets/006d5e37-374a-46c4-9df2-39be16637e9b)  
 
 ## Credits
-carlospolop - https://github.com/carlospolop/AzureAppsSweep  
-dafthack - https://github.com/dafthack/MFASweep
+Thanks to the following projects and blogs for the inspiration  
+- dave storie - https://labs.lares.com/owa-cap-bypass/
+- securityriskadvisors - https://github.com/SecurityRiskAdvisors/msspray
+- carlospolop - https://github.com/carlospolop/AzureAppsSweep  
+- dafthack - https://github.com/dafthack/MFASweep
+
 
 ## TODO
 - Take files in as input  
 - Support federated logins
-- Jitter / delay 
+- Jitter / delay
+- Quiet mode
