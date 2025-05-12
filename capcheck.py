@@ -14,6 +14,7 @@ file_name = date_time.strftime("capcheck_" + "%m-%d-%y-%X.txt")
 file_name = file_name.replace(":", "-")
 
 scope_list = []
+successful_results = []
 
 endpoint_table = [
     [1, "MS Graph", "https://graph.microsoft.com"],
@@ -164,6 +165,12 @@ clientid_table = [
     [112, "Microsoft Edge", "ecd6b820-32c2-49b6-98a6-444530e5a77a"]
 ]
 
+
+def get_clientid_name(client_id):
+    for id_entry in clientid_table:
+        if id_entry[2] == client_id:
+            return id_entry[1]
+    return "Unknown ClientID"
 
 
 
@@ -491,6 +498,20 @@ def main():
 
     print("Finished login attempts.")
 
+    if successful_results:
+        print("\nSummary of Successful Results")
+        print("-" * 80)
+        for entry in successful_results:
+            print(f"Username:     {entry['username']}")
+            print(f"Endpoint:     {entry['endpoint']}")
+            print(f"ClientID:     {entry['clientid_name']} ({entry['clientid']})")
+            print(f"User-Agent:   {entry['user_agent']}")
+            if entry.get("scope"):
+                print(f"Scope:        {entry['scope']}")
+            print("-" * 80)
+    else:
+        print("\nNo successful logins were detected.")
+
     if scope_list:
         print("\nThe tokens we obtained have the following scopes.")
         print("-------------------------------------------------")
@@ -498,145 +519,90 @@ def main():
             print(entry["clientid"] + " - " + entry["resource"] + " - " + entry["scope"])
 
 def login(file_name, username, password, endpoint, client_id, user_agent, user_agent_name, proxy=None):
-    
     Path("./capcheck_log").mkdir(parents=True, exist_ok=True)
-    
+
     validation_log = open("./capcheck_log/" + file_name, "a")
     current_date_time = datetime.datetime.now()
     time = current_date_time.strftime("%m/%d/%y %X")
 
-    proxies = {"http":proxy, "https":proxy}
-    
+    proxies = {"http": proxy, "https": proxy}
+
     url = 'https://login.microsoftonline.com'
-    
+
     body = {
-            'resource': endpoint,
-            'client_id': client_id,
-            'client_info': '1',
-            'grant_type': 'password',
-            'username': username,
-            'scope': 'openid',
-        }
-    
-    
+        'resource': endpoint,
+        'client_id': client_id,
+        'client_info': '1',
+        'grant_type': 'password',
+        'username': username,
+        'scope': 'openid',
+    }
+
     encoded_password = password.replace("%", "%25")
 
-    # manually convert body to a urlencoded string and add password later so requests doesnt urlencode the password incorrectly
     body_string = "&".join(f"{key}={requests.utils.quote(str(value))}" for key, value in body.items())
-
     body_string += f"&password={encoded_password}"
 
     headers = {
         'Accept': 'application/json',
-        'User-Agent': user_agent, 
+        'User-Agent': user_agent,
         'Content-Type': 'application/x-www-form-urlencoded',
     }
 
-    #print(body_string)
     r = requests.post(f"{url}/common/oauth2/token", headers=headers, data=body_string, proxies=proxies, verify=False)
     json_response = json.loads(r.text)
 
+    clientid_name = get_clientid_name(client_id)
+
     if r.status_code == 200:
-        result = ('\033[32m'+ 'Successful login' + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name  + '\033[39m')
+        result = ('\033[32m' + f'Successful login | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}' + '\033[39m')
         print(result)
+
+        successful_results.append({
+            "username": username,
+            "endpoint": endpoint,
+            "clientid": client_id,
+            "clientid_name": clientid_name,
+            "user_agent": user_agent_name,
+            "scope": json_response.get("scope", "")
+        })
 
     elif r.status_code == 400:
         error_code = json_response.get('error_codes', [])
 
         if 50076 in error_code:
-            result = ("Success: MFA Required" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name)
+            result = ("Success: MFA Required" + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}")
 
         elif 50079 in error_code:
-            result = ('\033[32m' + 'Success: MFA Setup Required' + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + '\033[39m')
-        
+            result = ('\033[32m' + "Success: MFA Setup Required" + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}" + '\033[39m')
         elif 50158 in error_code:
-            result = ("\033[33m" + "Probable Success: External security challenge not satisfied, likely a conditional access policy" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-        
+            result = ("\033[33m" + "Probable Success: External security challenge" + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}" + "\033[39m")
         elif 53003 in error_code:
-            result = ("\033[33m" + "Probable Success: Blocked by conditional access policies." + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-        
+            result = ("\033[33m" + "Probable Success: Blocked by conditional access policies." + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}" + "\033[39m")
         elif 50053 in error_code:
-            result = ("\033[31m" + "Success: Account Locked" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-        
+            result = ("\033[31m" + "Success: Account Locked" + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}" + "\033[39m")
         elif 50057 in error_code:
-            result = ("\033[31m" + "Success: Account Disabled" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-        
-        elif 50034 in error_code:
-            result = ("\033[31m" + "Failed: User does not exist in the directory." + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-
-        elif 50055 in error_code:
-            result = ("\033[33m" + "Success: Password Expired" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-
-        elif 65002 in error_code:
-            result = ("Success: Application not authorized" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name)
-        
-        elif 500011 in error_code:
-            result = ("Success: Application not installed?" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name)
-        
-        elif 700016 in error_code:
-            result = ("Success: The application wasn't found in the tenant" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name)
-
-        elif 700038 in error_code:
-            result = ("\033[31m" + "Failed" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-            answer = input("Invalid application identifier detected. Are you sure you want to continue? [Y/n]")
-
-            if answer.lower() == 'y' or answer.lower() == '':
-                pass
-            else:
-                print(result)
-                exit()
-
-        elif 50126 in error_code:
-            result = ("\033[31m" + "Failed" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-
-            answer = input("Invalid username or password detected for " + username + ". Are you sure you want to continue with this user? [Y/n]")
-
-            if answer.lower() == 'y' or answer.lower() == '':
-                pass
-            else:
-                print(result)
-                exit()
+            result = ("\033[31m" + "Success: Account Disabled" + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}" + "\033[39m")
         else:
             if error_code:
-                result = ("\033[33m" + "Unsupported error code detected: " + str(error_code) + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-            
+                result = ("\033[33m" + "Unsupported error code: " + str(error_code) + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}" + "\033[39m")
             else:
-                result = "Unknown error. Check log file for details."
+                result = "Unknown error."
 
-    
         print(result)
 
     elif r.status_code == 401:
         error_code = json_response.get('error_codes', [])
-
-        if 7000218 in error_code:
-            result = ("Must include client assertion or client secret: " + str(error_code) + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name)
-        
-        else:
-            result = ("\033[33m" + "Unsupported error code detected: " + str(error_code) + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
-        
+        result = ("\033[33m" + "Unauthorized: " + str(error_code) + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}" + "\033[39m")
         print(result)
 
     else:
-        result = (f"\033[31m" + "Failed to connect. Request not made" + " | " + username + " | " + endpoint + " | " + client_id + " | " + user_agent_name + "\033[39m")
+        result = ("\033[31m" + "Failed to connect." + f" | {username} | {endpoint} | {clientid_name} ({client_id}) | {user_agent_name}" + "\033[39m")
         print(result)
 
     validation_log.write("Time: " + time + "\n" + "Username: " + username + "\n" + "Endpoint: " + endpoint + "\n" + "Client ID: " + client_id + "\n" + "User-Agent: " + user_agent + "\n\n")
     validation_log.write(r.text + "\n\n\n")
     validation_log.close()
-
-
-    #print(r.text)
-    data = json.loads(r.text)
-
-
-    if data.get("resource") and data.get("scope"):
-        global scope_list
-        scope_list.append({
-            "resource": data.get("resource"),
-            "scope": data.get("scope"),
-            "clientid": client_id
-        })
 
 if __name__ == "__main__":
     main()
